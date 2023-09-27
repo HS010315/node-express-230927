@@ -1,90 +1,128 @@
-#!/usr/bin/env node
+const express = require('express');
+const app = express();
 
-/**
- * Module dependencies.
- */
+let users = [
+    { id: 0, data: "UserData"}              //배열안에 오브젝트
+];
 
-var app = require('../app');
-var debug = require('debug')('myapp:server');
-var http = require('http');
+let buildingUnderConstruction = null;       //시간 데이터를 저장한다
+//let buildingUnderConstruction[10][10] + 오브젝트 형태가 들어가게
 
-/**
- * Get port from environment and store in Express.
- */
+//================== Game Logic =====================
+app.post('/startConstruction' , (req, res)=> {
+    const currentTime = new Date();         //스타트시 Const로 시간을 고정해 준다. DB -> 로 저장할 때는 형태 결정해야함
+    const constructionTime = new Date(currentTime.getTime() + 10000);   //현재 시간으로부터 10초 뒤 저장(건물 완성 10초)
+    buildingUnderConstruction = constructionTime;                       //완성 시간을 전역으로
+    let result = {                              //구조를 나중에 자세하게 설정
+        message : buildingUnderConstruction
+    };
+    console.log("SYSTEM : 건설 시작");
+    res.send({                                  //기본 커맨드로 전송
+        cmd : 1101,
+        message : "SYSTEM : 건설 시작 ",
+        result
+    });
+});
+app.get('/checkConstruction' , (req, res) => {
 
-var port = normalizePort(process.env.PORT || '3000');
-app.set('port', port);
+    if(buildingUnderConstruction && new Date() >= buildingUnderConstruction)            // 시간이 지났으면
+    {
+        buildingUnderConstruction = null;
+        let result = {
+            message : buildingUnderConstruction
+        }
+        console.log("SYSTEM : 건설 완료");
+        res.send({                                  //기본 커맨드로 전송
+            cmd : 1101,
+            message : "SYSTEM : 건설 완료 ",
+            result
+        });     
+    }
+    else                    //설정한 시간 이전
+    {
+        let remainingTime = buildingUnderConstruction ? buildingUnderConstruction - new Date() : 0;
+        remainingTime = Math.max(0 , remainingTime);        //음수 시간을 0으로 설정
+        console.log("SYSTEM : 건설 중입니다. 남은 시간은 " + remainingTime + "ms");
+        let result = {
+            message : remainingTime
+        }
+        res.send({                                  //기본 커맨드로 전송
+            cmd : 1101,
+            message : "SYSTEM : 건설 중입니다. ",
+            result
+        });
+    }
+});
 
-/**
- * Create HTTP server.
- */
 
-var server = http.createServer(app);
+//=================== Game API ======================
 
-/**
- * Listen on provided port, on all network interfaces.
- */
+app.use(express.json());                   //json을 사용하겠다.
 
-server.listen(port);
-server.on('error', onError);
-server.on('listening', onListening);
+app.get('/',(req ,res)=>{
 
-/**
- * Normalize a port into a number, string, or false.
- */
+    let result = {
+        cmd : -1,
+        message : 'Hello world'
+    };
 
-function normalizePort(val) {
-  var port = parseInt(val, 10);
+    res.send(result);
+});
 
-  if (isNaN(port)) {
-    // named pipe
-    return val;
-  }
+app.get('/id',(req ,res)=>{
 
-  if (port >= 0) {
-    // port number
-    return port;
-  }
+    let result = {
+        cmd : 100,
+        message : 'MyID'
+    };
+    res.send(result);
+});
 
-  return false;
-}
+app.get('/userdata/list' , (req , res) => {         //유저 리스트 반환
 
-/**
- * Event listener for HTTP server "error" event.
- */
+    let result = users.sort(function(a,b){          //ID 순서로 정렬
+            return b.id - a.id;
+    });
 
-function onError(error) {
-  if (error.syscall !== 'listen') {
-    throw error;
-  }
+    result = result.slice(0, users.length);         //유저 숫자만큼 배열 생성 0 ~ n-1
 
-  var bind = typeof port === 'string'
-    ? 'Pipe ' + port
-    : 'Port ' + port;
+    res.send({                                      //패킷을 완성해서 보낸다. 
+        cmd : 1101,
+        message : '',
+        result
+    });
 
-  // handle specific listen errors with friendly messages
-  switch (error.code) {
-    case 'EACCES':
-      console.error(bind + ' requires elevated privileges');
-      process.exit(1);
-      break;
-    case 'EADDRINUSE':
-      console.error(bind + ' is already in use');
-      process.exit(1);
-      break;
-    default:
-      throw error;
-  }
-}
+});
 
-/**
- * Event listener for HTTP server "listening" event.
- */
+app.post('/userdata' , (req ,res) => {
+    const{id, data} = req.body;                 //Reqest Body에 Json 데이터가 들어오면 id, data에 연결
+    console.log(id,data);
+    let result = {
+        cmd: -1,
+        message: ''
+    };
 
-function onListening() {
-  var addr = server.address();
-  var bind = typeof addr === 'string'
-    ? 'pipe ' + addr
-    : 'port ' + addr.port;
-  debug('Listening on ' + bind);
-}
+    let user = users.find(x=>x.id == id);       //users 배열에서 X를 찾아서 리턴
+
+    if(user == undefined)                       //undefined 될경우 신규 등록
+    {
+        users.push({id , data});                //배열에 입력 Push
+        result.cmd = 1001;
+        result.message = "유저 신규 등록";
+    }
+    else
+    {
+        console.log(id, user.data);
+        user.data = data;
+        result.cmd = 1002;
+        result.message = '데이터 갱신';
+    }
+
+    console.log(users);
+    res.send(result);
+
+});
+
+app.listen(3030, ()=> {
+    console.log('server is running at 3030 port');
+});
