@@ -28,7 +28,7 @@ connection.query('SELECT * FROM userid', (err, results, fileds) => {
 
     const dataArray = results;
 
-    console.log('데이터 배열 : ', dataArray[0].index);
+    console.log('데이터 배열 : ', dataArray);
 
 });  
 
